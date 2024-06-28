@@ -1,0 +1,130 @@
+_____________________
+ЗАДАНИЕ I
+_____________________
+1) Вывести названия департаментов, в которых нет сотрудников, имеющих в имени букв z и w одновременно без учета регистра.
+--------
+
+SELECT 
+	dep.name AS department_name
+FROM 
+	department dep
+LEFT JOIN (
+    SELECT DISTINCT department_id
+    FROM employee
+    WHERE UPPER(name) LIKE '%Z%'
+      AND UPPER(name) LIKE '%W%'
+) fit_empls 
+	ON dep.id = fit_empls.department_id
+WHERE 
+	fit_empls.department_id IS NULL;
+
+--------
+
+2) Вывести список названий департаментов, суммарную зарплату сотрудников в департаменте и кумулятивную сумму суммарных зарплат по департаментам в порядке возрастания суммарной зарплаты
+--------
+
+SELECT
+    dep.name AS department_name,
+    SUM(emp.salary) AS total_salary,
+    SUM(SUM(emp.salary)) OVER (ORDER BY SUM(emp.salary)) AS overall_salary
+FROM 
+	department dep 
+LEFT JOIN employee emp 
+    ON dep.id = emp.department_id
+GROUP BY 
+    dep.id, dep.name
+ORDER BY 
+    overall_salary;
+
+--------
+
+3) Написать запрос, удаляющий из таблицы сотрудников дубли, т.е. всех, кроме одного, имеющих одинаковое имя, начальника, зарплату, и департамент. Оставить сотрудника с минимальным id.
+--------
+
+DELETE FROM 
+	employee
+WHERE 
+	(name, chief_id, salary, department_id, id) NOT IN 
+(
+    SELECT name, chief_id, salary, department_id, MIN(id)
+    FROM employee
+    GROUP BY name, chief_id, salary, department_id
+);
+ 
+--------
+
+4) Для каждого сотрудника найти все возможные переходы из текущего отдела в любой другой, при которых средняя зарплата в отделе, из которого он ушел и в который он пришел, возрастает.
+--------
+
+Для наглядности имеет смысл помимо id и имени сотрудника выводить информацию про среднюю зарплату в его отделе и среднюю зарплату в отделе, в который его можно перевести. По сути надо найти таких сотрудников, у которых зарплата ниже средней в их отделе, но выше средней в отделе, в который их переводят.
+
+--------
+
+WITH average_per_dept AS (
+    SELECT
+        dep.id AS department_id,
+        AVG(emp.salary) AS avg_salary
+    FROM
+        department dep
+    JOIN employee emp 
+    	ON dep.id = emp.department_id
+    GROUP BY
+        dep.id
+) 
+SELECT
+    emp.id AS employee_id,
+    emp.name AS employee_name,
+    emp.salary AS employee_salary,
+    dep.name AS current_department,
+    ROUND(curr_dp.avg_salary) as current_dpt_avg,
+    tr_dp.name AS transfer_department,
+    ROUND(tr_dp.avg_salary) as transfer_dpt_avg
+FROM
+    employee emp
+JOIN average_per_dept curr_dp 
+    ON emp.department_id = curr_dp.department_id
+JOIN department dep 
+    ON emp.department_id = dep.id
+JOIN department tr_dp 
+    ON tr_dp.id != emp.department_id
+JOIN average_per_dept tr_dp 
+    ON tr_dp.department_id = tr_dp.id 
+WHERE
+    emp.salary > tr_dp.avg_salary 
+    AND emp.salary < curr_dp.avg_salary;
+
+--------
+
+_____________________
+ЗАДАНИЕ II              
+_____________________
+Есть таблица с банкоматами, куда вносят данные при установке банкомата по тому или иному адресу
+
+ATM
+id:уникальный цифровой идентификатор
+adr:адрес размешения
+dt:дата+время установки
+
+Вывести перечень банкоматов с их id, адресом размещения по состоянию на 01.01.2023 00:00:00
+--------
+
+Из тестовых данных не очень понятно что имелось в виду под "разметкой", т.к. id банкоматов повторяются.
+Дальнейшее решение предполагает, что id это id банкоматов, а не отделений/других структур в которых банкоматы находятся --> все id уникальные. 
+Таким образом, звёздочкой размечены строки, которые вывелись бы при выполнении следующего запроса, если бы у банкоматов  в тестовых данных были уникальные id. 
+
+--------
+
+SELECT 
+	id AS atm_id, adr AS address
+FROM ATM 
+WHERE dt<=TO_TIMESTAMP('01.01.2023 00:00:00', 'DD.MM.YY HH24:MI:SS')
+
+--------
+Единственный банкомат, который был поставлен после  01.01.2023 00:00:00 -- последний, т.ч. только он остался неотмеченным.
+
+* 	1;Кутузовский 32, 01.01.2002 12:11:10 	*
+* 	2;Кутузовский 31, 01.01.2003 12:11:10 	*
+* 	1;Ленина 1, 01.01.2012 12:11:10 			*
+* 	2;Кутузовский 32, 01.01.2022 12:11:10 	*
+* 	1;Кутузовский 32, 01.10.2022 10:11:10 	*
+	3;Кутузовский 32, 01.03.2023 12:11:10
